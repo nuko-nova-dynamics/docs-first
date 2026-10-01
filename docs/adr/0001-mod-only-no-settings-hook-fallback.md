@@ -1,0 +1,3 @@
+# The gate ships as a mod only, with no settings-hook fallback
+
+The gate used to run as four settings hooks that started Node for every Bash, Edit and Write call and every tool batch, with state in JSON files; the two machines it ran on had drifted to different versions. It now ships as a mod from the nuko-nova-tools marketplace, and the settings hooks were removed everywhere rather than kept as a fallback for sessions where mods do not load (`--bare`, `--safe-mode`, Claude Code older than 2.1.287). A fallback would mean two codebases and two gates able to deny the same call, which is how the drift started; the cost is that those sessions run ungated.

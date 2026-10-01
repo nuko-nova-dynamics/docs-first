@@ -1,0 +1,18 @@
+{
+  "name": "docs-first",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Claude Code mod that holds back dependency changes, new imports and sensitive-file edits until the session has checked a primary source.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"src/**/*.spec.ts\"",
+    "test:mod": "claude plugin test .",
+    "typecheck": "tsc -p . --allowImportingTsExtensions",
+    "validate": "claude plugin validate ."
+  },
+  "license": "MIT",
+  "author": "Nuko Nova Dynamics <hello@nukonova.com>",
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
