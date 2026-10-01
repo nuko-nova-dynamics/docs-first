@@ -86,3 +86,34 @@ test("classify: which tool calls are gated actions", async () => {
     assert.deepEqual(await classify(call, files, "/p"), [], call.tool);
   }
 });
+
+test("an Edit is judged against the whole file, so a swapped version or module name is caught", async () => {
+  const files = fakeFiles({
+    ...PROJECT,
+    "/p/package.json": JSON.stringify({ dependencies: { react: "^19", next: "^15.0.0" } }, null, 2),
+    "/p/src/schema.ts": imp("zod")
+  });
+  const bump = await classify({ tool: "Edit", file_path: "/p/package.json", old_string: "^15.0.0", new_string: "^16.0.0" }, files, "/p");
+  assert.deepEqual(bump[0]?.subjects, [{ name: "next", ecosystem: "npm" }]);
+  const swap = await classify({ tool: "Edit", file_path: "/p/src/schema.ts", old_string: "zod", new_string: "valibot" }, files, "/p");
+  assert.deepEqual(swap[0]?.subjects, [{ name: "valibot", ecosystem: "npm" }]);
+});
+
+test("package.json dependencies are read as JSON, not by pattern", () => {
+  assert.deepEqual(manifestChanges(`{ "scripts": {} }`, `{ "scripts": { "build": "next build" } }`), [], "a script is not a dependency");
+  assert.deepEqual(manifestChanges(`{}`, `{ "dependencies": { "zod": "*" } }`), ["zod"]);
+  assert.deepEqual(manifestChanges(`{}`, `{ "dependencies": { "compat-zod": "npm:zod@3" } }`), ["zod"]);
+  assert.deepEqual(manifestChanges(`{}`, `{ "dependencies": { "@app/ui": "workspace:*", "lib": "github:me/lib", "local": "file:../x" } }`), []);
+  assert.deepEqual(manifestChanges(`"build": "tsc"`, `"build": "next build"`), [], "a fragment that is not JSON falls back to a pattern");
+});
+
+test("comments are not code", () => {
+  assert.deepEqual(importSpecs(`// ${imp("zod")}\n/* ${imp("valibot")} */`), []);
+  assert.deepEqual(importSpecs(`const m = import(/* webpackChunkName: "schema" */ ${q("zod")});`), ["zod"]);
+  assert.deepEqual(importSpecs(`const url = "https://example.com"; ${imp("zod")}`), ["zod"], "// inside a string is not a comment");
+});
+
+test("an exact path alias matches only itself", async () => {
+  const files = fakeFiles({ ...PROJECT, "/p/tsconfig.json": JSON.stringify({ compilerOptions: { paths: { shim: ["./shim.ts"], "@ui/*": ["./ui/*"] } } }) });
+  assert.deepEqual(await newUnknownImports("/p/src/a.ts", "", [imp("shim"), imp("shim-extra"), imp("@ui/button")].join("\n"), files), ["shim-extra"]);
+});

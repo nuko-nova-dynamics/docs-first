@@ -63,3 +63,16 @@ test("/docs-gate lists the evidence and the last denial", async ($, on) => {
   expect(report.text).toMatch(/registry \(npm\): zod/);
   expect(report.text).toMatch(/Last denial.*left-pad/);
 });
+
+test("the status line follows the session through /resume and /clear", async ($, on) => {
+  const shown: (string | undefined)[] = [];
+  world(on, { "ledger:overridden": { evidence: [], overrideUntil: 9_999_999_999, lastDenial: null, touchedAt: 1 } });
+  on("ui.status", ($, e) => {
+    shown.push(e.text);
+    return { value: undefined };
+  });
+  await $.classic.SessionStart({ source: "resume", session_id: "overridden" });
+  expect(shown.at(-1)).toMatch(/override on/);
+  await $.classic.SessionStart({ source: "clear", session_id: "fresh-after-clear" });
+  expect(shown.at(-1)).toBeUndefined();
+});

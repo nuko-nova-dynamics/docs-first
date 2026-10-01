@@ -57,3 +57,13 @@ test("sweeping removes only stale ledgers of other sessions", async () => {
   assert.equal(await ledgers.sweep(store, now), 1);
   assert.deepEqual([...store.data.keys()].sort(), ["ledger:live", "ledger:recent", "other"]);
 });
+
+test("a failed store read reaches the caller and is retried", async () => {
+  const store = memoryStore();
+  store.data.set("ledger:S", { evidence: [docs("zod")].map((f) => ({ ...f, at: 1 })), touchedAt: 1 });
+  let failures = 1;
+  const flaky: Store = { ...store, get: async (key) => { if (failures-- > 0) throw new Error("store unavailable"); return store.get(key); } };
+  const ledgers = new Ledgers();
+  await assert.rejects(ledgers.get(flaky, "S"), /store unavailable/);
+  assert.deepEqual((await ledgers.get(flaky, "S")).evidence.map((e) => e.subject), ["zod"]);
+});

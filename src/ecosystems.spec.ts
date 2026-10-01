@@ -62,3 +62,18 @@ test("each ecosystem names its own lookup as the remedy", () => {
   assert.equal(remedyFor({ name: "serde", ecosystem: "cargo" }), "cargo info serde");
   assert.equal(remedyFor({ name: "go.uber.org/zap", ecosystem: "go" }), "go list -m -versions go.uber.org/zap");
 });
+
+test("each package manager's own flags decide what is a package", () => {
+  assert.deepEqual(names("pnpm add -w zod"), ["zod"], "pnpm -w is a switch");
+  assert.deepEqual(names("npm i -w web zod"), ["zod"], "npm -w names a workspace");
+  assert.deepEqual(names("yarn workspace web add zod"), ["zod"]);
+  assert.deepEqual(names("cargo add serde --features derive"), ["serde"]);
+  assert.deepEqual(names("pnpm add compat-zod@npm:zod@3"), ["zod"], "an alias fetches its target");
+});
+
+test("a lookup is the view subcommand itself, or a file reader under node_modules", () => {
+  assert.deepEqual(lookups("pnpm exec echo view zod"), []);
+  assert.deepEqual(lookups("yarn npm info zod"), ["npm:zod"]);
+  assert.deepEqual(lookups("echo hi > node_modules/zod/README.md"), []);
+  assert.deepEqual(lookups("rm -rf node_modules/zod"), []);
+});

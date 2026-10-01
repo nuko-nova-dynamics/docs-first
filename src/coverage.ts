@@ -48,8 +48,10 @@ export function covers(evidence: Evidence | Finding, subject: Subject): boolean 
   if (evidence.kind === "registry") {
     return evidence.ecosystem === subject.ecosystem && canonicalName(evidence.subject, evidence.ecosystem) === canonicalName(subject.name, subject.ecosystem);
   }
-  const key = familyKey(evidence.subject);
-  return key.length > 0 && familiesOf(subject).includes(key);
+  // A docs subject is read the way a package name is, so docs naming `@tanstack/react-query` cover the tanstack family.
+  const keys = familiesOf({ name: evidence.subject, ecosystem: "npm" }).filter(Boolean);
+  const families = familiesOf(subject);
+  return keys.some((key) => families.includes(key));
 }
 
 export function isCovered(evidence: readonly (Evidence | Finding)[], subject: Subject): boolean {

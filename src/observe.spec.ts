@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Finding, ToolCall, ToolOutcome } from "./model.ts";
-import { observe } from "./observe.ts";
+import { inlineFindings, observe } from "./observe.ts";
 
 const ok = (text = "ok"): ToolOutcome => ({ succeeded: true, text });
 const seen = (call: ToolCall, outcome: ToolOutcome = ok()) =>
@@ -29,4 +29,19 @@ test("reading ordinary files and searching the web are not evidence", () => {
   assert.deepEqual(seen({ tool: "Read", file_path: "/p/transcripts/money/23-payment-plans.md" }), []);
   assert.deepEqual(seen({ tool: "WebSearch", query: "zod v4" }), []);
   assert.deepEqual(seen({ tool: "Bash", command: "ls src && git status" }), []);
+});
+
+test("a command's own lookup counts only when the change runs after it succeeds", () => {
+  const inline = (command: string) => inlineFindings(command).map((f) => f.subject);
+  assert.deepEqual(inline("pnpm view zod version && pnpm add zod"), ["zod"]);
+  assert.deepEqual(inline("curl -fsSL https://registry.npmjs.org/zod && pnpm add zod"), ["zod"]);
+  assert.deepEqual(inline("pnpm add zod && pnpm view zod version"), [], "installed before the lookup");
+  assert.deepEqual(inline("pnpm view zod version || pnpm add zod"), [], "installs when the lookup fails");
+  assert.deepEqual(inline("pnpm view zod version; pnpm add zod"), [], "runs whatever the lookup returned");
+});
+
+test("writing under node_modules is not reading a package", () => {
+  assert.deepEqual(seen({ tool: "Write", file_path: "/p/node_modules/zod/README.md", content: "x" }), []);
+  assert.deepEqual(seen({ tool: "Edit", file_path: "/p/node_modules/zod/index.js", old_string: "a", new_string: "b" }), []);
+  assert.deepEqual(seen({ tool: "Bash", command: "pnpm exec echo view zod" }), []);
 });

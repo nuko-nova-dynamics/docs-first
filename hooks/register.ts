@@ -110,7 +110,15 @@ export const register: Register = (on) => {
 
   on("classic.SessionStart", async ($, e, next) => {
     const result = await next(e);
-    if (typeof e.session_id === "string" && e.session_id) sessionId = e.session_id;
+    if (typeof e.session_id === "string" && e.session_id && e.session_id !== sessionId) {
+      sessionId = e.session_id;
+      // /clear and /resume switch ledgers: the status line and override timer follow the new one.
+      try {
+        await refreshStatus($);
+      } catch (err) {
+        fail($, "loading the ledger", err);
+      }
+    }
     return { ...result, additionalContext: [...(result.additionalContext ?? []), BRIEFING] };
   });
 

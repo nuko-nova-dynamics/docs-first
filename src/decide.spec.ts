@@ -36,6 +36,12 @@ test("a command that looks a package up before adding it stands on its own", asy
   assert.deepEqual(decide(await classify({ tool: "Bash", command }, files, "/p"), inlineFindings(command), "/p"), ALLOW);
 });
 
+test("a lookup after the change, or instead of it, does not count", async () => {
+  for (const command of ["pnpm add zod && pnpm view zod version", "pnpm view zod version || pnpm add zod"]) {
+    assert.match(reason(decide(await classify({ tool: "Bash", command }, files, "/p"), inlineFindings(command), "/p")), /zod/, command);
+  }
+});
+
 test("re-pinning a dependency in package.json needs evidence for it", async () => {
   const bump = { tool: "Edit", file_path: "/p/package.json", old_string: `"next": "^15.0.0"`, new_string: `"next": "^16.0.0"` };
   assert.match(reason(await verdict(bump)), /re-pins next in package.json/);

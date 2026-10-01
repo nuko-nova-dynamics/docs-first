@@ -62,10 +62,12 @@ export function isOverridden(ledger: Ledger, now: number): boolean {
 export class Ledgers {
   private loaded = new Map<string, Promise<Ledger>>();
 
+  /** The session's ledger. A failed read rejects, so the caller's failure handling runs, and is retried on the next call. */
   get(store: Store, sessionId: string): Promise<Ledger> {
     let ledger = this.loaded.get(sessionId);
     if (!ledger) {
-      ledger = store.get(KEY_PREFIX + sessionId).then(readLedger, () => emptyLedger());
+      ledger = store.get(KEY_PREFIX + sessionId).then(readLedger);
+      ledger.catch(() => this.loaded.delete(sessionId));
       this.loaded.set(sessionId, ledger);
     }
     return ledger;
@@ -81,7 +83,12 @@ export class Ledgers {
     return ledger;
   }
 
-  /** Deletes ledgers untouched for the TTL, sparing sessions loaded in this process. Returns how many went. */
+  /**
+   * Deletes ledgers untouched for the TTL, sparing sessions loaded in this process. The store has no
+   * compare-and-set, so a session another process resumes between this read and the delete can lose its
+   * evidence; that needs a two-week-old session resumed within one store round trip, and costs a lookup.
+   * Returns how many went.
+   */
   async sweep(store: Store, now: number): Promise<number> {
     let removed = 0;
     for (const key of await store.keys()) {

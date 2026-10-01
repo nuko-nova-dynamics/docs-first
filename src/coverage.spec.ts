@@ -27,6 +27,8 @@ test("docs evidence covers the family its source documents", () => {
   assert.ok(!covers(docs("nextjs"), npm("next-auth")), "next-auth is its own project");
   assert.ok(!covers(docs("nextjs"), npm("@clerk/nextjs")), "a scoped package belongs to its scope");
   assert.ok(!covers(docs("react"), npm("react-native-svg")));
+  assert.ok(covers(docs("@tanstack/react-query"), npm("@tanstack/react-query")), "docs naming a scoped package cover it");
+  assert.ok(covers(docs("@prisma/client"), npm("@prisma/client")));
 });
 
 test("family keys drop domain and language suffixes", () => {
