@@ -74,7 +74,7 @@ test("sensitive files and their subjects", () => {
 test("classify: which tool calls are gated actions", async () => {
   const files = fakeFiles({ ...PROJECT, "/p/src/existing.ts": imp("zod") });
   const zod = [{ name: "zod", ecosystem: "npm" }];
-  assert.deepEqual(await classify({ tool: "Bash", command: "pnpm add zod" }, files, "/p"), [{ kind: "dependency-change", via: "command", subjects: zod }]);
+  assert.deepEqual(await classify({ tool: "Bash", command: "pnpm add zod" }, files, "/p"), [{ kind: "dependency-change", via: "command", subjects: zod, inline: [] }]);
   assert.deepEqual(await classify({ tool: "Write", file_path: "/p/src/existing.ts", content: `${imp("zod")}\nexport {};` }, files, "/p"), [], "Write compares against the file on disk");
   const relative = await classify({ tool: "Edit", file_path: "src/b.ts", old_string: "", new_string: imp("zod") }, files, "/p");
   assert.equal(relative[0]?.kind, "new-external-" + "import");
@@ -116,4 +116,19 @@ test("comments are not code", () => {
 test("an exact path alias matches only itself", async () => {
   const files = fakeFiles({ ...PROJECT, "/p/tsconfig.json": JSON.stringify({ compilerOptions: { paths: { shim: ["./shim.ts"], "@ui/*": ["./ui/*"] } } }) });
   assert.deepEqual(await newUnknownImports("/p/src/a.ts", "", [imp("shim"), imp("shim-extra"), imp("@ui/button")].join("\n"), files), ["shim-extra"]);
+});
+
+test("package.json: tilde ranges, overrides and resolutions are dependencies too", () => {
+  assert.deepEqual(manifestChanges(`{ "dependencies": { "zod": "~3.24.0" } }`, `{ "dependencies": { "zod": "~4.0.0" } }`), ["zod"]);
+  assert.deepEqual(manifestChanges(`{ "overrides": { "zod": "3.24.0" } }`, `{ "overrides": { "zod": "4.0.0" } }`), ["zod"]);
+  assert.deepEqual(manifestChanges(`{}`, `{ "overrides": { "foo": { ".": "1.0.0", "bar": "2.0.0" } } }`), ["foo", "bar"]);
+  assert.deepEqual(manifestChanges(`{}`, `{ "pnpm": { "overrides": { "a>@s/b": "1.0.0" } }, "resolutions": { "**/left-pad": "1.3.0" } }`), ["@s/b", "left-pad"]);
+  assert.deepEqual(manifestChanges(`{}`, `{ "dependencies": { "next": "^16.0.0" }, "overrides": { "next": "$next" } }`), ["next"], "a $ reference pins nothing new");
+  assert.deepEqual(manifestChanges(`{}`, `{ "dependencies": { "lib": "~/code/lib" } }`), [], "~/ is a path");
+});
+
+test("a regular expression literal does not hide the code after it", () => {
+  assert.deepEqual(importSpecs(`const re = /[/*]/; ${imp("zod")}`), ["zod"]);
+  assert.deepEqual(importSpecs(`const url = /https?:\\/\\//; ${imp("zod")}`), ["zod"]);
+  assert.deepEqual(importSpecs(`const half = total / 2; // ${imp("zod")}`), [], "a division is not a regular expression");
 });

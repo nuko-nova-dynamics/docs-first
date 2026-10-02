@@ -1,8 +1,10 @@
 // Which tool calls are gated actions, and which subjects each one depends on.
 
-import { dependencyChanges, npmPackageName } from "./ecosystems.ts";
+import { changesIn, npmPackageName } from "./ecosystems.ts";
 import type { GatedAction, ProjectFiles, Subject, ToolCall } from "./model.ts";
+import { inlineEvidence } from "./observe.ts";
 import { basename, dirname, join, resolve } from "./paths.ts";
+import { commands } from "./shell.ts";
 
 // ---------------------------------------------------------------------------
 // Imports
@@ -24,9 +26,33 @@ const RUNTIME_MODULES = new Set([
   "bun", "claude-code", "claude-code/testing"
 ]);
 
+// What can come right before a regular expression literal, as opposed to a division sign.
+const REGEX_AFTER = new Set(["", "(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^"]);
+const REGEX_AFTER_WORD_RE = /(?:^|[^\w$])(?:return|typeof|case|do|else|in|of|void|yield|await|delete|throw|new|instanceof)$/;
+
+function regexStartsAfter(code: string): boolean {
+  const before = code.replace(/\s+$/, "");
+  return REGEX_AFTER.has(before.slice(-1)) || REGEX_AFTER_WORD_RE.test(before);
+}
+
+/** The index of the slash that closes a regular expression literal opened at `start`, or the end of its line. */
+function regexEnd(src: string, start: number): number {
+  let inClass = false;
+  for (let j = start + 1; j < src.length; j += 1) {
+    const ch = src[j];
+    if (ch === "\\") { j += 1; continue; }
+    if (ch === "\n") return j - 1;
+    if (inClass) { if (ch === "]") inClass = false; continue; }
+    if (ch === "[") inClass = true;
+    else if (ch === "/") return j;
+  }
+  return src.length - 1;
+}
+
 /**
- * Source with its comments removed and its strings kept, so a commented-out statement is not read as
- * code and a comment inside a dynamic import's parentheses does not hide its specifier.
+ * Source with its comments removed and its strings and regular expressions kept, so a commented-out
+ * statement is not read as code, a comment inside a dynamic import's parentheses does not hide its
+ * specifier, and a `/*` inside a regular expression does not hide what follows.
  */
 export function stripComments(source: string): string {
   const src = String(source || "");
@@ -50,6 +76,12 @@ export function stripComments(source: string): string {
     if (ch === "/" && next === "/") {
       const close = src.indexOf("\n", i + 2);
       i = (close < 0 ? src.length : close) - 1;
+      continue;
+    }
+    if (ch === "/" && regexStartsAfter(out)) {
+      const close = regexEnd(src, i);
+      out += src.slice(i, close + 1);
+      i = close;
       continue;
     }
     if (ch === "'" || ch === "\"" || ch === "`") quote = ch;
@@ -159,7 +191,8 @@ export async function newUnknownImports(file: string, before: string, after: str
 
 const DEP_SECTIONS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 // Specs that point at local folders, workspaces or git rather than the registry.
-const NON_REGISTRY_SPEC_RE = /^(workspace:|link:|file:|portal:|git\+|git:|github:|https?:|ssh:|\.|\/|~)|^[\w.-]+\/[\w.-]+(#.*)?$/;
+// A leading `~` alone is a semver range (`~3.24.0`); only `~/` is a path.
+const NON_REGISTRY_SPEC_RE = /^(workspace:|link:|file:|portal:|git\+|git:|github:|https?:|ssh:|\.\.?\/|\/|~\/)|^[\w.-]+\/[\w.-]+(#.*)?$/;
 
 type Dependency = { spec: string; pkg: string };
 
@@ -168,7 +201,32 @@ function dependencyOf(name: string, spec: string): Dependency {
   return { spec, pkg: (spec.startsWith("npm:") && npmPackageName(spec.slice(4))) || name };
 }
 
-/** A package.json's registry dependencies by name, or null when the text is not a JSON object. */
+/** The package an override key names: `foo`, `@s/foo`, `foo@1` (npm), `a>foo` (pnpm), or a yarn path ending in `/foo`. */
+function overrideTarget(key: string): string {
+  const last = key.split(">").pop() ?? key;
+  return last.match(/(@[^/@]+\/[^/@]+|[^/@]+)(?:@[^/]*)?$/)?.[1] ?? "";
+}
+
+/** Adds every pinned version in an overrides or resolutions block, npm's nested form included, keyed by where it sits. */
+function addOverrides(deps: Map<string, Dependency>, block: unknown, at: string, parent: string): void {
+  if (!block || typeof block !== "object" || Array.isArray(block)) return;
+  for (const [key, value] of Object.entries(block)) {
+    const pkg = key === "." ? parent : overrideTarget(key);
+    if (!pkg) continue;
+    const where = `${at}/${key}`;
+    if (typeof value === "string") {
+      // `$name` refers to the version the project's own dependency pins.
+      if (!value.startsWith("$") && !NON_REGISTRY_SPEC_RE.test(value)) deps.set(where, dependencyOf(pkg, value));
+    } else {
+      addOverrides(deps, value, where, pkg);
+    }
+  }
+}
+
+/**
+ * A package.json's registry dependencies, or null when the text is not a JSON object. Direct dependencies
+ * are keyed by name, so moving one between sections is no change; overrides by where they sit.
+ */
 function manifestDependencies(text: string): Map<string, Dependency> | null {
   const json = parseJson(text);
   if (!json) return null;
@@ -180,6 +238,9 @@ function manifestDependencies(text: string): Map<string, Dependency> | null {
       if (typeof spec === "string" && !NON_REGISTRY_SPEC_RE.test(spec)) deps.set(name, dependencyOf(name, spec));
     }
   }
+  addOverrides(deps, json.overrides, "overrides", "");
+  addOverrides(deps, json.pnpm?.overrides, "pnpm.overrides", "");
+  addOverrides(deps, json.resolutions, "resolutions", "");
   return deps;
 }
 
@@ -203,7 +264,7 @@ export function manifestChanges(before: string, after: string): string[] {
   const now = manifestDependencies(after);
   const was = now ? (manifestDependencies(before) ?? new Map<string, Dependency>()) : fragmentDependencies(before);
   const changed = new Set<string>();
-  for (const [name, dep] of now ?? fragmentDependencies(after)) if (was.get(name)?.spec !== dep.spec) changed.add(dep.pkg);
+  for (const [where, dep] of now ?? fragmentDependencies(after)) if (was.get(where)?.spec !== dep.spec) changed.add(dep.pkg);
   return [...changed];
 }
 
@@ -279,8 +340,13 @@ async function contents(call: ToolCall, file: string, files: ProjectFiles): Prom
 /** The gated actions a tool call would take; empty for every call the gate leaves alone. */
 export async function classify(call: ToolCall, files: ProjectFiles, cwd: string): Promise<GatedAction[]> {
   if (call.tool === "Bash") {
-    const subjects = dependencyChanges(String(call.command ?? ""));
-    return subjects.length ? [{ kind: "dependency-change", via: "command", subjects }] : [];
+    const steps = commands(String(call.command ?? ""));
+    const actions: GatedAction[] = [];
+    steps.forEach((step, k) => {
+      const subjects = changesIn(step.tokens);
+      if (subjects.length) actions.push({ kind: "dependency-change", via: "command", subjects, inline: inlineEvidence(steps, k) });
+    });
+    return actions;
   }
   if (call.tool !== "Edit" && call.tool !== "Write") return [];
   const rawPath = String(call.file_path ?? "");

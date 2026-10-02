@@ -29,3 +29,17 @@ test("wrappers are looked through, and only && chains a command to the one befor
   assert.deepEqual(tokenize("sudo -u me npm i zod"), ["npm", "i", "zod"]);
   assert.deepEqual(commands("a && b || c; d &&\ne").map((s) => s.chained), [false, true, false, false, true]);
 });
+
+test("heredocs: quoted bodies are data, unquoted bodies run their substitutions, delimiters are whole words", () => {
+  assert.deepEqual(splitShell("cat <<EOF\n$(pnpm add zod)\nEOF"), ["cat <<EOF", "pnpm add zod"]);
+  assert.deepEqual(splitShell("cat <<'EOF'\n$(pnpm add zod)\nEOF"), ["cat <<'EOF'"]);
+  assert.deepEqual(splitShell("cat <<EOF.txt\nplain\nEOF.txt\npnpm add zod"), ["cat <<EOF.txt", "pnpm add zod"]);
+  const commit = `git commit -m "$(cat <<'EOF'\nDon't (ever) ship this\nEOF\n)" && pnpm add zod`;
+  assert.ok(splitShell(commit).includes("pnpm add zod"), "a quote inside a quoted heredoc body is data");
+});
+
+test("comments and command -v run nothing", () => {
+  assert.deepEqual(splitShell("# pnpm add zod\ngit status # and pnpm add react"), ["git status"]);
+  assert.deepEqual(splitShell("curl https://x.dev/a#b"), ["curl https://x.dev/a#b"], "a # inside a word is not a comment");
+  assert.deepEqual(tokenize("command -v pnpm view zod"), ["command", "-v", "pnpm", "view", "zod"]);
+});

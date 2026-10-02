@@ -77,3 +77,9 @@ test("a lookup is the view subcommand itself, or a file reader under node_module
   assert.deepEqual(lookups("echo hi > node_modules/zod/README.md"), []);
   assert.deepEqual(lookups("rm -rf node_modules/zod"), []);
 });
+
+test("flag values are not packages: bun --filter, cargo --registry; yarn workspace commands are read through", () => {
+  assert.deepEqual(names("bun add zod --filter api"), ["zod"]);
+  assert.deepEqual(lookups("cargo info rand --registry serde"), ["cargo:rand"]);
+  assert.deepEqual(lookups("yarn workspace web npm info zod"), ["npm:zod"]);
+});

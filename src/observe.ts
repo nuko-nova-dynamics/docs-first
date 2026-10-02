@@ -1,8 +1,8 @@
-// What evidence a finished tool call produced.
+// What evidence a finished tool call produced, and what a command looks up before its own changes.
 
-import { changesIn, lookupsIn, registryLookups, registryPackageFromUrl } from "./ecosystems.ts";
+import { lookupsIn, registryPackageFromUrl } from "./ecosystems.ts";
 import type { Finding, ToolCall, ToolOutcome } from "./model.ts";
-import { commands, head } from "./shell.ts";
+import { commands, head, type Step } from "./shell.ts";
 import { context7Subjects, docsSubjectsFromUrl, urlsIn, vendorOfMcpTool } from "./sources.ts";
 
 // Output that means the lookup found nothing, even when the tool reported success (curl prints a 404 page and exits 0).
@@ -11,6 +11,8 @@ const FETCH_COMMANDS = new Set(["curl", "wget", "gh", "firecrawl", "ctx7", "http
 const GITHUB_DOCS_TOOL_RE = /github__(get_file_contents|get_latest_release|list_releases|get_release_by_tag|search_code)$/i;
 // Tools that only read: a node_modules path in their input means the package's own files were read.
 const READ_TOOLS = new Set(["Read", "Glob", "Grep", "LS"]);
+// Flags that make a program print help or its version instead of doing its work.
+const HELP_FLAGS = new Set(["-h", "--help", "--version", "-V", "--manual"]);
 
 export function looksFailed(text: string): boolean {
   return FAILURE_RE.test(String(text || "").slice(0, 400));
@@ -24,38 +26,45 @@ function urlFindings(url: string, source: string): Finding[] {
 }
 
 const urlsOf = (t: readonly string[]) => t.filter((x) => /^https?:\/\//.test(x));
+const asksForHelp = (t: readonly string[]) => t.slice(1).some((x) => HELP_FLAGS.has(x));
 
-/**
- * Registry lookups a command line makes before its own dependency changes, credited only when the
- * shell runs the change after the lookup succeeded: `pnpm view x && pnpm add x` stands on its own,
- * while `pnpm add x && pnpm view x` and `pnpm view x || pnpm add x` do not.
- */
-export function inlineFindings(command: string): Finding[] {
-  const steps = commands(command);
-  const changing = steps.flatMap((s, i) => (changesIn(s.tokens).length ? [i] : []));
-  if (!changing.length) return [];
-  const first = Math.min(...changing);
-  const last = Math.max(...changing);
-  const out: Finding[] = [];
-  for (let j = 0; j < first; j += 1) {
-    if (!steps.slice(j + 1, last + 1).every((s) => s.chained)) continue;
-    const tokens = steps[j]?.tokens ?? [];
-    for (const s of lookupsIn(tokens)) out.push({ kind: "registry", ecosystem: s.ecosystem, subject: s.name, source: "same command" });
-    if (!FETCH_COMMANDS.has(head(tokens))) continue;
-    for (const url of urlsOf(tokens)) {
+/** The registry lookups one simple command makes: registry commands, and registry URLs a fetch program requests. */
+function registryFindingsOf(t: readonly string[], source: string): Finding[] {
+  if (asksForHelp(t)) return [];
+  const out: Finding[] = lookupsIn(t).map((s) => ({ kind: "registry", ecosystem: s.ecosystem, subject: s.name, source }));
+  if (FETCH_COMMANDS.has(head(t))) {
+    for (const url of urlsOf(t)) {
       const pkg = registryPackageFromUrl(url);
-      if (pkg) out.push({ kind: "registry", ecosystem: pkg.ecosystem, subject: pkg.name, source: "same command" });
+      if (pkg) out.push({ kind: "registry", ecosystem: pkg.ecosystem, subject: pkg.name, source });
     }
   }
   return out;
 }
 
+/**
+ * The registry lookups a command line makes before its change at step `k`, credited only when the shell
+ * runs that change because the lookup succeeded: each step from the lookup to the change joined by `&&`,
+ * none of them inside a substitution. `pnpm view x && pnpm add x` stands on its own; `pnpm add x && pnpm
+ * view x`, `pnpm view x || pnpm add x` and `echo "$(pnpm view x)" && pnpm add x` do not.
+ */
+export function inlineEvidence(steps: readonly Step[], k: number): Finding[] {
+  const out: Finding[] = [];
+  if (steps[k]?.nested) return out;
+  for (let j = k - 1; j >= 0; j -= 1) {
+    if (!steps.slice(j + 1, k + 1).every((s) => s.chained && !s.nested)) break;
+    const step = steps[j];
+    if (step && !step.nested) out.push(...registryFindingsOf(step.tokens, "same command"));
+  }
+  return out;
+}
+
 function shellFindings(command: string): Finding[] {
-  const out: Finding[] = registryLookups(command).map((s) => ({ kind: "registry", ecosystem: s.ecosystem, subject: s.name, source: "shell" }));
+  const out: Finding[] = [];
   for (const { tokens: t } of commands(command)) {
+    out.push(...registryFindingsOf(t, "shell"));
     const h = head(t);
-    if (!FETCH_COMMANDS.has(h)) continue;
-    for (const url of urlsOf(t)) out.push(...urlFindings(url, h));
+    if (!FETCH_COMMANDS.has(h) || asksForHelp(t)) continue;
+    for (const url of urlsOf(t)) out.push(...docsSubjectsFromUrl(url).map((subject): Finding => ({ kind: "docs", subject, source: h })));
     if (h === "gh" && t[1] === "api" && t[2]) {
       const m = t[2].match(/^\/?repos\/[^/]+\/([^/]+)/);
       if (m?.[1]) out.push({ kind: "docs", subject: m[1], source: "gh api" }, { kind: "docs", subject: "github", source: "gh api" });

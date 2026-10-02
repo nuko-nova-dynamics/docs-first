@@ -6,7 +6,7 @@ import { classify } from "../src/classify.ts";
 import { decide } from "../src/decide.ts";
 import { Ledgers, OVERRIDE_MS, isOverridden, record, type Ledger, type Store } from "../src/ledger.ts";
 import type { ProjectFiles, ToolCall, ToolOutcome, Verdict } from "../src/model.ts";
-import { inlineFindings, observe } from "../src/observe.ts";
+import { observe } from "../src/observe.ts";
 import { isOverrideRequest } from "../src/override.ts";
 import { describe } from "../src/report.ts";
 
@@ -74,8 +74,7 @@ async function judge($: Api, call: ToolCall): Promise<Verdict | null> {
   if (!actions.length) return null;
   const ledger = await ledgers.get(storeOf($), await currentSession($));
   if (isOverridden(ledger, await $.clock.now())) return null;
-  const inline = call.tool === "Bash" ? inlineFindings(String(call.command ?? "")) : [];
-  return decide(actions, [...ledger.evidence, ...inline], cwd);
+  return decide(actions, ledger.evidence, cwd);
 }
 
 function outcomeOf(result: unknown): ToolOutcome {

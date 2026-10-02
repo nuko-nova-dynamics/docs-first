@@ -3,7 +3,6 @@ import test from "node:test";
 import { classify } from "./classify.ts";
 import { decide } from "./decide.ts";
 import type { Finding, ToolCall, Verdict } from "./model.ts";
-import { inlineFindings } from "./observe.ts";
 import { fakeFiles, imp, q } from "./spec-support.ts";
 
 const files = fakeFiles({
@@ -32,13 +31,22 @@ test("evidence for one package does not cover another whose name contains it", a
 });
 
 test("a command that looks a package up before adding it stands on its own", async () => {
-  const command = "pnpm view react version && pnpm add react";
-  assert.deepEqual(decide(await classify({ tool: "Bash", command }, files, "/p"), inlineFindings(command), "/p"), ALLOW);
+  assert.deepEqual(await verdict({ tool: "Bash", command: "pnpm view react version && pnpm add react" }), ALLOW);
+  assert.deepEqual(await verdict({ tool: "Bash", command: "curl -fsSL https://registry.npmjs.org/zod && pnpm add zod" }), ALLOW);
+  assert.deepEqual(await verdict({ tool: "Bash", command: "pnpm view zod version &&\n# then add it\npnpm add zod" }), ALLOW, "a comment line keeps the chain");
+  assert.deepEqual(await verdict({ tool: "Bash", command: "pnpm view zod version && pnpm add zod && pnpm view react version && pnpm add react" }), ALLOW, "each change has its own lookup before it");
 });
 
 test("a lookup after the change, or instead of it, does not count", async () => {
-  for (const command of ["pnpm add zod && pnpm view zod version", "pnpm view zod version || pnpm add zod"]) {
-    assert.match(reason(decide(await classify({ tool: "Bash", command }, files, "/p"), inlineFindings(command), "/p")), /zod/, command);
+  for (const command of [
+    "pnpm add zod && pnpm view zod version",
+    "pnpm view zod version || pnpm add zod",
+    "pnpm view zod version; pnpm add zod",
+    'true && echo "$(pnpm view zod version)" && pnpm add zod',
+    "curl --help https://registry.npmjs.org/zod && pnpm add zod",
+    "command -v pnpm view zod version && pnpm add zod"
+  ]) {
+    assert.match(reason(await verdict({ tool: "Bash", command })), /zod/, command);
   }
 });
 

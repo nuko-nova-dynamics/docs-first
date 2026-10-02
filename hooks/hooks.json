@@ -1,3 +1,12 @@
 {
-  "modules": ["./register.ts"]
+  "modules": ["./register.ts"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/mods-check.mjs\"", "timeout": 5 }
+        ]
+      }
+    ]
+  }
 }

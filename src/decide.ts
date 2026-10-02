@@ -20,7 +20,8 @@ function denial(action: GatedAction, evidence: readonly (Evidence | Finding)[], 
     return `${file} is a sensitive file (${action.label}) and this session has consulted no docs or registry data yet. Check the docs of the platform or library this change depends on, then retry.`;
   }
 
-  const missing = action.subjects.filter((s) => !isCovered(evidence, s));
+  const known = action.kind === "dependency-change" && action.inline ? [...evidence, ...action.inline] : evidence;
+  const missing = action.subjects.filter((s) => !isCovered(known, s));
   if (!missing.length) return null;
   const lookup = `Run ${remedies(missing)}, or read ${them(missing) === "it" ? "its" : "their"} official docs or Context7`;
   if (action.kind === "dependency-change" && action.via === "manifest") {

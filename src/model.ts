@@ -21,7 +21,8 @@ export type Finding =
 
 /** A tool call the gate judges before it runs. */
 export type GatedAction =
-  | { kind: "dependency-change"; via: "command" | "manifest"; subjects: Subject[] }
+  // `inline`: lookups the same command makes before this change, on success only.
+  | { kind: "dependency-change"; via: "command" | "manifest"; subjects: Subject[]; inline?: Finding[] }
   | { kind: "new-external-import"; file: string; subjects: Subject[] }
   | { kind: "sensitive-file-edit"; file: string; label: string; subjects: Subject[] };
 

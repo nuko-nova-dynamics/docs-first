@@ -74,7 +74,7 @@ const JS_VALUE_FLAGS: Record<string, ReadonlySet<string>> = {
   pnpm: new Set(["--filter", "-F", "-C", "--dir", "--registry", "--package", "--reporter", "--loglevel", "--config"]),
   npm: new Set(["-w", "--workspace", "--prefix", "--registry", "--tag", "--userconfig", "--cache", "--loglevel"]),
   yarn: new Set(["--cwd", "--registry"]),
-  bun: new Set(["--cwd", "--registry", "--backend"]),
+  bun: new Set(["--cwd", "--registry", "--backend", "--filter", "-F"]),
   npx: new Set(["-p", "--package", "-w", "--workspace", "--prefix", "--registry", "--cache"]),
   bunx: new Set(["-p", "--package"])
 };
@@ -111,9 +111,9 @@ export function npmPackageName(spec: string): string {
 /** For a package manager command, the index of its subcommand, looking through `yarn workspace <name>` and `yarn npm`. */
 function jsSubcommand(t: readonly string[], h: string): number {
   const flags = JS_VALUE_FLAGS[h] ?? NO_FLAGS;
-  const idx = subcommandIndex(t, 1, flags);
-  if (h === "yarn" && t[idx] === "workspace") return subcommandIndex(t, idx + 2, flags);
-  if (h === "yarn" && t[idx] === "npm") return subcommandIndex(t, idx + 1, flags);
+  let idx = subcommandIndex(t, 1, flags);
+  if (h === "yarn" && t[idx] === "workspace") idx = subcommandIndex(t, idx + 2, flags);
+  if (h === "yarn" && t[idx] === "npm") idx = subcommandIndex(t, idx + 1, flags);
   return idx;
 }
 
@@ -221,7 +221,7 @@ const brew: Entry = {
 const cargo: Entry = {
   id: "cargo",
   changes: (t) => (head(t) === "cargo" && t[1] === "add" ? argsAfter(t, 1, CARGO_VALUE_FLAGS).map(withoutVersion) : []),
-  lookups: (t) => (head(t) === "cargo" && (t[1] === "search" || t[1] === "info") ? argsAfter(t, 1) : []),
+  lookups: (t) => (head(t) === "cargo" && (t[1] === "search" || t[1] === "info") ? argsAfter(t, 1, CARGO_VALUE_FLAGS) : []),
   registryPackage: (host, segs) => (host === "crates.io" && segs[0] === "crates" && segs[1] ? segs[1] : ""),
   remedy: (name) => `cargo info ${name}`
 };
