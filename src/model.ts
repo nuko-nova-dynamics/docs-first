@@ -27,7 +27,7 @@ export type GatedAction =
   | { kind: "sensitive-file-edit"; file: string; label: string; subjects: Subject[] };
 
 /** The gate's answer for one tool call. */
-export type Verdict = { allow: true } | { allow: false; reason: string };
+export type Verdict = { allow: true } | { allow: false; reason: string; summary: string };
 
 /** A tool call as the gate reads it: the tool's name and its arguments as top-level fields. */
 export type ToolCall = { readonly tool: string; readonly [field: string]: unknown };

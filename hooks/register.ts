@@ -1,6 +1,8 @@
 // The mod's wiring: the only file that talks to Claude Code. Everything it decides comes from ../src.
 
+import { atom, update } from "claude-code";
 import type { EngineInterface, Register } from "claude-code";
+import type { DocsFirstBlock } from "../types";
 import { BRIEFING, OVERRIDE_ACK } from "../src/briefing.ts";
 import { classify } from "../src/classify.ts";
 import { decide } from "../src/decide.ts";
@@ -21,6 +23,8 @@ let sessionId = "";
 // The last failure of the gate itself. While set, calls are allowed and the status line says why.
 let gateError = "";
 let overrideTimer: { cancel(): void } | null = null;
+// The last denial, shared so other mods can show it; cleared once evidence arrives or a gated call goes through.
+const block = atom({ plugin: "docs-first", key: "block" } as const, null as DocsFirstBlock | null);
 
 const storeOf = ($: Api): Store => ({
   get: (key) => $.store.get(key),
@@ -111,6 +115,7 @@ export const register: Register = (on) => {
     const result = await next(e);
     if (typeof e.session_id === "string" && e.session_id && e.session_id !== sessionId) {
       sessionId = e.session_id;
+      await update($, block, () => null).catch(() => {});
       // /clear and /resume switch ledgers: the status line and override timer follow the new one.
       try {
         await refreshStatus($);
@@ -131,6 +136,7 @@ export const register: Register = (on) => {
         return true;
       });
       accepted = true;
+      await update($, block, () => null).catch(() => {});
       await refreshStatus($);
     } catch (err) {
       fail($, "recording the override", err);
@@ -152,8 +158,10 @@ export const register: Register = (on) => {
     }
     if (verdict && !verdict.allow) {
       const reason = verdict.reason;
+      const summary = verdict.summary;
       try {
         const now = await $.clock.now();
+        await update($, block, () => ({ at: now, tool: call.tool, summary })).catch(() => {});
         await ledgers.change(storeOf($), await currentSession($), now, (ledger) => {
           ledger.lastDenial = { at: now, tool: call.tool, reason };
           return true;
@@ -164,12 +172,15 @@ export const register: Register = (on) => {
       return { deny: reason };
     }
 
+    if (verdict?.allow) await update($, block, () => null).catch(() => {});
     const result = await next(e);
     try {
       const findings = observe(call, outcomeOf(result));
       if (findings.length) {
         const now = await $.clock.now();
-        await ledgers.change(storeOf($), await currentSession($), now, (ledger) => record(ledger, findings, now));
+        let isNew = false;
+        await ledgers.change(storeOf($), await currentSession($), now, (ledger) => (isNew = record(ledger, findings, now)));
+        if (isNew) await update($, block, () => null).catch(() => {});
       }
     } catch (err) {
       fail($, "recording evidence", err);

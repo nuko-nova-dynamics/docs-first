@@ -1,6 +1,6 @@
 {
   "name": "docs-first",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Holds back dependency changes, new imports and sensitive-file edits until the session has checked the registry or the official docs for them.",
   "author": {
     "name": "Nuko Nova Dynamics",
@@ -9,6 +9,7 @@
   "homepage": "https://github.com/nuko-nova-dynamics/docs-first",
   "repository": "https://github.com/nuko-nova-dynamics/docs-first",
   "license": "MIT",
+  "types": "./types/index.d.ts",
   "keywords": [
     "mod",
     "docs",

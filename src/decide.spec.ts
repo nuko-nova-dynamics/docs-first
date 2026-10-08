@@ -85,3 +85,13 @@ test("agents, reads, prose and unrelated edits are never gated", async () => {
     assert.deepEqual(await verdict(call), ALLOW, call.tool);
   }
 });
+
+test("a denial carries one short line for a person beside the reason for Claude", async () => {
+  const summary = (v: Verdict) => (v.allow ? "" : v.summary);
+  assert.equal(summary(await verdict({ tool: "Bash", command: "pnpm add zod" })), "changing zod: needs registry or docs evidence");
+  assert.equal(
+    summary(await verdict({ tool: "Bash", command: "pnpm add zod && pnpm add valibot" })),
+    "changing zod: needs registry or docs evidence; changing valibot: needs registry or docs evidence"
+  );
+  assert.equal(summary(await verdict({ tool: "Bash", command: "pnpm up zod" })), "changing zod: needs registry or docs evidence", "an upgrade is not called an addition");
+});
