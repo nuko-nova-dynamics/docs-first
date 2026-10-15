@@ -52,6 +52,15 @@ function packageFlags(t: readonly string[]): string[] {
   return out;
 }
 
+/**
+ * packageFlags for the words before the program a dlx or npx run executes, starting the search at `from`.
+ * The program's own flags are not the runner's: in `npx tsc -p tsconfig.json`, -p names a project file.
+ */
+function runnerPackageFlags(t: readonly string[], from: number, valueFlags: ReadonlySet<string>): string[] {
+  const program = subcommandIndex(t, from, new Set([...valueFlags, "-p", "--package"]));
+  return packageFlags(program < 0 ? t : t.slice(0, program));
+}
+
 // Programs that only read files: a node_modules path in their arguments means the package's own files were read.
 const FILE_READERS = new Set(["cat", "head", "tail", "less", "more", "bat", "ls", "tree", "jq", "grep", "rg", "sed", "awk", "find", "wc", "file", "stat", "diff"]);
 
@@ -95,7 +104,8 @@ const REGISTRY_FIELDS = new Set(["version", "versions", "dist-tags", "dist-tags.
  */
 export function npmPackageName(spec: string): string {
   let s = String(spec || "").trim();
-  if (!s || s.startsWith("-")) return "";
+  // A shell variable or substitution (`$spec`, `${pkg}`, `$(cat x)`) is not a package name.
+  if (!s || s.startsWith("-") || s.includes("$")) return "";
   const alias = s.indexOf("@npm:");
   if (alias > 0) return npmPackageName(s.slice(alias + 5));
   if (/^(file:|link:|workspace:|portal:|github:|git\+|git:|https?:|ssh:|\.|\/|~)/.test(s)) return "";
@@ -129,7 +139,7 @@ const npm: Entry = {
       // A bare `pnpm install` or `pnpm up` names no package and installs from the lockfile or ranges.
       if (JS_CHANGE.has(sub)) return argsAfter(t, idx, flags).map(npmPackageName).filter(Boolean);
       if (JS_FETCH_RUN[h]?.has(sub)) {
-        const flagged = packageFlags(t).map(npmPackageName).filter(Boolean);
+        const flagged = runnerPackageFlags(t, idx + 1, flags).map(npmPackageName).filter(Boolean);
         if (flagged.length) return flagged;
         const name = npmPackageName(argsAfter(t, idx, flags)[0] ?? "");
         if (!name) return [];
@@ -142,7 +152,7 @@ const npm: Entry = {
       // npx runs an installed binary when one exists, so only an explicit fetch changes dependencies:
       // a scaffolder (create-*), a pinned spec (pkg@version), -p/--package, or -y/--yes.
       if (t.some((x) => /^(--version|-v|--help|-h)$/.test(x))) return [];
-      const flagged = packageFlags(t);
+      const flagged = runnerPackageFlags(t, 1, JS_VALUE_FLAGS[h] ?? NO_FLAGS);
       if (flagged.length) return flagged.map(npmPackageName).filter(Boolean);
       const spec = argsAfter(t, 0, JS_VALUE_FLAGS[h])[0] ?? "";
       const name = npmPackageName(spec);

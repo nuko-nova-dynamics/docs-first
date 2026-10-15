@@ -29,6 +29,10 @@ test("dependency changes: scaffolders, fetch-and-run, and other ecosystems", () 
   assert.deepEqual(names("npx -p cowsay cowsay hi"), ["cowsay"]);
   assert.deepEqual(names("pnpm --package=typescript@7 dlx tsc -p ."), ["typescript"], "--package names what is fetched, not the binary run");
   assert.deepEqual(names("pnpm dlx --package typescript tsc"), ["typescript"]);
+  assert.deepEqual(names("npx tsc -p tsconfig.json --noEmit"), [], "-p after the program is the program's own flag");
+  assert.deepEqual(names("npx -p typescript tsc --noEmit"), ["typescript"]);
+  assert.deepEqual(names("yarn dlx -p typescript tsc -p tsconfig.json"), ["typescript"]);
+  assert.deepEqual(names("pnpm add -g $spec"), [], "a shell variable is not a package name");
   assert.deepEqual(names("npx @scope/create-thing"), ["@scope/create-thing"]);
   assert.deepEqual(dependencyChanges("pip install requests>=2 pillow"), [{ name: "requests", ecosystem: "python" }, { name: "pillow", ecosystem: "python" }]);
   assert.deepEqual(names("uv add httpx"), ["httpx"]);
