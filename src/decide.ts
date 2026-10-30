@@ -18,7 +18,7 @@ function denial(action: GatedAction, evidence: readonly (Evidence | Finding)[], 
     if (action.subjects.length) {
       if (action.subjects.some((s) => isCovered(evidence, s))) return null;
       return {
-        reason: `${file} is a sensitive file (${action.label}) and this session has no current docs or registry evidence for any library it uses (${names(action.subjects.slice(0, 6))}). Read the current docs for the one this change depends on (a Context7 query, the official docs, a registry view, or the vendor's MCP), then retry.`,
+        reason: `${file} is a sensitive file (${action.label}) and this session has no current docs or registry evidence for any library it uses (${names(action.subjects.slice(0, 6))}). Read the current docs for the one this change depends on (the official docs, a registry view, or the vendor's MCP), then retry.`,
         summary: `editing ${file}: needs docs or registry evidence for one of ${names(action.subjects.slice(0, 3))}${action.subjects.length > 3 ? ", ..." : ""}`
       };
     }
@@ -32,7 +32,7 @@ function denial(action: GatedAction, evidence: readonly (Evidence | Finding)[], 
   const known = action.kind === "dependency-change" && action.inline ? [...evidence, ...action.inline] : evidence;
   const missing = action.subjects.filter((s) => !isCovered(known, s));
   if (!missing.length) return null;
-  const lookup = `Run ${remedies(missing)}, or read ${them(missing) === "it" ? "its" : "their"} official docs or Context7`;
+  const lookup = `Run ${remedies(missing)}, or read ${them(missing) === "it" ? "its" : "their"} official docs`;
   const needs = "needs registry or docs evidence";
   if (action.kind === "dependency-change" && action.via === "manifest") {
     return {

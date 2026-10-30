@@ -34,23 +34,6 @@ export function urlsIn(text: string): string[] {
   return String(text || "").match(/https?:\/\/[^\s"'<>)\]]+/g) || [];
 }
 
-// Context7 ids are /<owner>/<project>[/<version>]; a project named like these says nothing about the library.
-const GENERIC_PROJECT = new Set(["docs", "doc", "documentation", "website", "site", "www", "llms", "llmstxt"]);
-
-/** The families a Context7 call is about: the library name it resolves, or the project in a library id. */
-export function context7Subjects(input: { readonly [field: string]: unknown }): string[] {
-  const out: string[] = [];
-  if (typeof input.libraryName === "string" && input.libraryName.trim()) out.push(input.libraryName.trim());
-  if (typeof input.libraryId === "string") {
-    const segs = input.libraryId.split("/").filter(Boolean);
-    if (/^v?\d/.test(segs[segs.length - 1] ?? "")) segs.pop();
-    const project = segs[1] || "";
-    if (project && !GENERIC_PROJECT.has(project.toLowerCase())) out.push(project);
-    else if (segs[0]) out.push(segs[0]);
-  }
-  return out;
-}
-
 // Vendors whose own MCP servers are primary sources for their platform.
 const VENDOR_MCPS = new Set(["vercel", "github", "stripe", "sentry", "supabase", "expo", "railway", "cloudflare", "revenuecat", "resend", "elevenlabs", "convex", "posthog", "twilio", "firebase", "neon", "planetscale", "upstash"]);
 

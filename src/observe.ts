@@ -3,7 +3,7 @@
 import { lookupsIn, registryPackageFromUrl } from "./ecosystems.ts";
 import type { Finding, ToolCall, ToolOutcome } from "./model.ts";
 import { commands, head, type Step } from "./shell.ts";
-import { context7Subjects, docsSubjectsFromUrl, urlsIn, vendorOfMcpTool } from "./sources.ts";
+import { docsSubjectsFromUrl, urlsIn, vendorOfMcpTool } from "./sources.ts";
 
 // Output that means the lookup found nothing, even when the tool reported success (curl prints a 404 page and exits 0).
 const FAILURE_RE = /\b(E404|ERR_PNPM_FETCH_404|404 Not Found|ENOTFOUND|ECONNREFUSED|command not found|No such file or directory|Could not resolve|Request failed)\b/i;
@@ -88,7 +88,6 @@ function toolFindings(call: ToolCall): Finding[] {
     for (const url of urlsIn(urls.join(" "))) out.push(...urlFindings(url, tool));
   }
   if (isMcp) {
-    if (/context7/i.test(tool)) out.push(...context7Subjects(call).map((subject): Finding => ({ kind: "docs", subject, source: "context7" })));
     const vendor = vendorOfMcpTool(tool);
     if (vendor) out.push({ kind: "docs", subject: vendor, source: tool });
     if (GITHUB_DOCS_TOOL_RE.test(tool) && typeof call.repo === "string") out.push({ kind: "docs", subject: call.repo, source: tool });

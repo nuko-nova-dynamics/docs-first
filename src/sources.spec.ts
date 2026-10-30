@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { context7Subjects, docsSubjectsFromUrl, vendorOfMcpTool } from "./sources.ts";
+import { docsSubjectsFromUrl, vendorOfMcpTool } from "./sources.ts";
 
 test("docs subjects from urls", () => {
   assert.deepEqual(docsSubjectsFromUrl("https://nextjs.org/docs/app/api-reference"), ["nextjs"]);
@@ -12,13 +12,6 @@ test("docs subjects from urls", () => {
   assert.deepEqual(docsSubjectsFromUrl("https://medium.com/@x/how-to-use-zod"), []);
   assert.deepEqual(docsSubjectsFromUrl("https://example.com/blog/post"), [], "a non-docs page is not evidence");
   assert.deepEqual(docsSubjectsFromUrl("https://code.claude.com/docs/en/hooks.md"), ["claude"]);
-});
-
-test("context7 calls vouch for the library they resolve or the project in the id", () => {
-  assert.deepEqual(context7Subjects({ libraryName: "next.js" }), ["next.js"]);
-  assert.deepEqual(context7Subjects({ libraryId: "/vercel/next.js" }), ["next.js"]);
-  assert.deepEqual(context7Subjects({ libraryId: "/prisma/docs/v6.0.0" }), ["prisma"], "a generic project name falls back to the owner");
-  assert.deepEqual(context7Subjects({ libraryId: "/websites/react_dev" }), ["react_dev"]);
 });
 
 test("only a vendor's own MCP server counts as that vendor's docs", () => {
