@@ -36,7 +36,7 @@ _Avoid_: proof, research, unlock
 Evidence from a package registry or from an installed package's own files. It vouches for exactly one package.
 
 **Docs evidence**:
-Evidence from official documentation, Context7, or a vendor's own tool server. It vouches for the family of packages that source documents, such as nextjs.org for `next` and `@next/*`.
+Evidence from official documentation or a vendor's own tool server. It vouches for the family of packages that source documents, such as nextjs.org for `next` and `@next/*`.
 
 **Coverage**:
 A subject is covered when the session holds registry evidence for that exact package, or docs evidence for its family.

@@ -17,7 +17,7 @@ When the gate denies a call, the reason names each package that has no evidence 
 The gate records evidence from tool calls that succeed:
 
 - **Registry evidence** covers exactly one package. It comes from a registry lookup (`pnpm view`, `npm info`, `pip index versions`, `brew info`, `cargo info`, `go list`), a registry URL, or reading the package's own files under `node_modules`.
-- **Docs evidence** covers the packages a source documents. Reading nextjs.org/docs covers `next` and `@next/*`; Stripe's docs cover `stripe` and `@stripe/*`. It comes from official docs pages, Context7, GitHub repositories, and a vendor's own MCP server.
+- **Docs evidence** covers the packages a source documents. Reading nextjs.org/docs covers `next` and `@next/*`; Stripe's docs cover `stripe` and `@stripe/*`. It comes from official docs pages, GitHub repositories, and a vendor's own MCP server.
 
 Evidence for one package never covers another whose name merely contains it: checking `react` does not cover `react-native-svg`. A failed lookup or a 404 page records nothing.
 

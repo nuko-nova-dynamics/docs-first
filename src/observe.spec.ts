@@ -11,8 +11,6 @@ test("evidence from finished tool calls", () => {
   assert.deepEqual(seen({ tool: "Bash", command: "pnpm view zod version" }, ok("3.24.0")), ["registry:npm:zod"]);
   assert.deepEqual(seen({ tool: "Bash", command: "curl -s https://registry.npmjs.org/zod" }), ["registry:npm:zod"]);
   assert.deepEqual(seen({ tool: "Bash", command: "gh api repos/vercel/next.js/releases/latest" }), ["docs:next.js", "docs:github"]);
-  assert.deepEqual(seen({ tool: "mcp__context7__query-docs", libraryId: "/vercel/next.js", query: "x" }), ["docs:next.js"]);
-  assert.deepEqual(seen({ tool: "mcp__context7__query-docs", libraryId: "/prisma/docs/v6.0.0", query: "x" }), ["docs:prisma"]);
   assert.deepEqual(seen({ tool: "Read", file_path: "/p/node_modules/@prisma/client/package.json" }), ["registry:npm:@prisma/client"]);
   assert.deepEqual(seen({ tool: "WebFetch", url: "https://docs.stripe.com/webhooks", prompt: "x" }), ["docs:stripe"]);
   assert.deepEqual(seen({ tool: "mcp__firecrawl__firecrawl_scrape", url: "https://nextjs.org/docs/app" }), ["docs:nextjs"]);

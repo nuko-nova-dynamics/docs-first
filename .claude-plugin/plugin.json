@@ -1,6 +1,6 @@
 {
   "name": "docs-first",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Holds back dependency changes, new imports and sensitive-file edits until the session has checked the registry or the official docs for them.",
   "author": {
     "name": "Nuko Nova Dynamics",
