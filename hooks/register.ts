@@ -127,7 +127,8 @@ export const register: Register = (on) => {
   });
 
   on("prompt.submit", async ($, e, next) => {
-    if (!isOverrideRequest(e.text, e.origin.kind)) return next(e);
+    const entrypoint = e.origin.kind === "sdk" ? await $.env.get("CLAUDE_CODE_ENTRYPOINT").catch(() => undefined) : undefined;
+    if (!isOverrideRequest(e.text, e.origin.kind, entrypoint)) return next(e);
     let accepted = false;
     try {
       const now = await $.clock.now();

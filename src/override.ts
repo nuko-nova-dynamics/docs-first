@@ -7,6 +7,12 @@ const OVERRIDE_RE = /(?:DOCS_FIRST_OVERRIDE|HOOK_OVERRIDE|RESEARCH_GATE_OVERRIDE
 // `claude -p` callers such as Codex) is never the person and cannot turn the gate off.
 const PERSON_ORIGINS = new Set(["composer", "bridge"]);
 
-export function isOverrideRequest(text: string, originKind: string): boolean {
-  return PERSON_ORIGINS.has(originKind) && OVERRIDE_RE.test(String(text || ""));
+// T3 Code runs Claude through the Agent SDK, so a message the person types there arrives with origin `sdk`,
+// the same as a prompt an agent sends to a T3 thread. Under T3 the gate accepts `sdk` and takes that risk;
+// under any other entrypoint `sdk` stays a program, never the person.
+const T3_ENTRYPOINT = "t3-code";
+
+export function isOverrideRequest(text: string, originKind: string, entrypoint?: string): boolean {
+  const person = PERSON_ORIGINS.has(originKind) || (originKind === "sdk" && entrypoint === T3_ENTRYPOINT);
+  return person && OVERRIDE_RE.test(String(text || ""));
 }
