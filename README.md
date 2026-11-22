@@ -26,7 +26,7 @@ Evidence lasts for the session, including its subagents, and survives `claude --
 ## Using it
 
 - `/docs-gate` shows the evidence the session holds and the last denial. It runs at once, even while Claude is working, and starts no turn.
-- Typing `hook override` turns the gate off for 15 minutes. It works only when the user types it at the terminal or through Remote Control; a message from another session, a subagent, a scheduled task or `claude -p` cannot do it.
+- Typing `hook override` turns the gate off for 15 minutes. It works only when the user types it at the terminal, through Remote Control, or in a T3 Code thread; a message from another session, a subagent, a scheduled task or `claude -p` cannot do it. T3 Code delivers every message through the Agent SDK, so in T3 a prompt another agent sends to the thread can also turn the gate off.
 - A line under the prompt appears only while an override is on or the gate itself has failed. If the gate breaks, it allows calls and says so there rather than blocking work.
 - Anthropic can switch Claude Code mods off remotely. When that happens the gate cannot run, so a message at session start says so, and Claude is told to check the docs anyway. The gate starts again by itself when mods come back.
 
